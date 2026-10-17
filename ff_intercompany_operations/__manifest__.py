@@ -16,6 +16,11 @@ Arabic translations.
     "website": "https://flousflow.com",
     "support": "support@flousflow.com",
     "license": "LGPL-3",
+    "images": [
+        "static/description/cover.png",
+        "static/description/quick_setup.png",
+        "static/description/setup_help.png",
+    ],
     "depends": ["base", "mail", "stock", "sale_management", "purchase", "account"],
     "data": [
         "security/security.xml",
