@@ -1,0 +1,1 @@
+<odoo><record id="seq_event" model="ir.sequence"><field name="name">Intercompany Event</field><field name="code">ff.intercompany.event</field><field name="prefix">ICE/</field><field name="padding">6</field></record></odoo>

@@ -1,0 +1,24 @@
+<odoo>
+    <record id="module_category_intercompany" model="ir.module.category">
+        <field name="name">Intercompany Operations</field>
+        <field name="sequence">65</field>
+    </record>
+    <record id="privilege_intercompany" model="res.groups.privilege">
+        <field name="name">Intercompany Operations</field>
+        <field name="description">Configure and operate intercompany synchronization.</field>
+        <field name="placeholder">No Access</field>
+        <field name="category_id" ref="module_category_intercompany"/>
+        <field name="sequence">65</field>
+    </record>
+    <record id="group_intercompany_user" model="res.groups">
+        <field name="name">Intercompany User</field>
+        <field name="implied_ids" eval="[(4, ref('base.group_user'))]"/>
+        <field name="privilege_id" ref="privilege_intercompany"/>
+    </record>
+    <record id="group_intercompany_manager" model="res.groups">
+        <field name="name">Intercompany Manager</field>
+        <field name="implied_ids" eval="[(4, ref('group_intercompany_user'))]"/>
+        <field name="privilege_id" ref="privilege_intercompany"/>
+        <field name="user_ids" eval="[(4, ref('base.user_admin'))]"/>
+    </record>
+</odoo>
