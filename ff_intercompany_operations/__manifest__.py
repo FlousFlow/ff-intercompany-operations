@@ -24,6 +24,7 @@ Arabic translations.
         "views/intercompany_views.xml",
         "wizard/intercompany_setup_views.xml",
         "views/trade_views.xml",
+        "views/account_views.xml",
     ],
     "installable": True,
     "application": True,

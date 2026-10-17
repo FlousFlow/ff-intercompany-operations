@@ -85,3 +85,24 @@ class TestIntercompanyAccount(TransactionCase):
         self.assertEqual(bill.move_type, "in_invoice")
         self.assertEqual(bill.state, "draft")
         self.assertEqual(self.env["account.move"].search_count([("ref", "=", invoice.name), ("move_type", "=", "in_invoice")]), 1)
+
+    def test_manual_invoice_route_requires_explicit_sync(self):
+        self.route.write({"trigger": "manual"})
+        journal = self.env["account.journal"].search([("company_id", "=", self.company_a.id), ("type", "=", "sale")], limit=1)
+        income_account = self.env["account.account"].search([("company_ids", "in", self.company_a.id), ("account_type", "=", "income")], limit=1)
+        invoice = self.env["account.move"].create({
+            "move_type": "out_invoice", "company_id": self.company_a.id, "journal_id": journal.id,
+            "partner_id": self.customer.id, "invoice_line_ids": [(0, 0, {
+                "name": "Manual intercompany service", "quantity": 1, "price_unit": 50, "account_id": income_account.id,
+            })],
+        })
+        invoice.action_post()
+        self.assertFalse(self.env["ff.intercompany.event"].search([
+            ("source_model", "=", "account.move"), ("source_res_id", "=", invoice.id),
+        ]))
+        invoice.with_user(self.env.ref("base.user_admin")).action_intercompany_sync()
+        event = self.env["ff.intercompany.event"].search([
+            ("source_model", "=", "account.move"), ("source_res_id", "=", invoice.id),
+        ], limit=1)
+        self.assertEqual(event.state, "completed")
+        self.assertEqual(self.env["account.move"].browse(event.target_res_id).state, "draft")

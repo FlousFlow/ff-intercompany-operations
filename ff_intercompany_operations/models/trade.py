@@ -1,25 +1,63 @@
 from odoo import api, fields, models, _
-from odoo.exceptions import ValidationError, UserError
+from odoo.exceptions import AccessError, ValidationError, UserError
 
 
 class IntercompanyTradeService(models.AbstractModel):
     _name = "ff.intercompany.trade.service"
     _description = "Intercompany Trade Service"
 
-    def _route_for(self, source, source_document, target_document):
+    def _route_for(self, source, source_document, target_document, trigger="confirmation"):
         # Route configuration is privileged metadata; only the matching route
         # is returned, while source documents remain in the caller's company
         # context.
-        return self.env["ff.intercompany.route"].sudo().search([
+        today = fields.Date.context_today(self)
+        routes = self.env["ff.intercompany.route"].sudo().search([
             ("active", "=", True),
             ("source_company_id", "=", source.company_id.id),
             ("destination_company_id", "!=", source.company_id.id),
             ("source_document", "=", source_document),
             ("target_document", "=", target_document),
-            ("trigger", "=", "confirmation"),
+            ("trigger", "=", trigger),
             ("agreement_id.status", "=", "active"),
             ("agreement_id.active", "=", True),
-        ], limit=1)
+            ("agreement_id.effective_date", "<=", today),
+            "|", ("agreement_id.expiration_date", "=", False),
+            ("agreement_id.expiration_date", ">=", today),
+        ], order="sequence,id")
+        authorized = routes.filtered(
+            lambda route: not route.agreement_id.authorized_user_ids
+            or self.env.user in route.agreement_id.authorized_user_ids
+        )
+        if routes and not authorized:
+            raise ValidationError(_(
+                "You are not authorized to run this intercompany agreement."
+            ))
+        routes = authorized
+        source_partner = source.partner_id
+        specific = routes.filtered(lambda route: route.source_partner_id == source_partner)
+        if specific:
+            routes = specific
+        else:
+            routes = routes.filtered(lambda route: not route.source_partner_id)
+        source_warehouse = getattr(source, "warehouse_id", False)
+        warehouse_specific = routes.filtered(
+            lambda route: route.source_warehouse_id == source_warehouse
+        )
+        if warehouse_specific:
+            routes = warehouse_specific
+        else:
+            routes = routes.filtered(lambda route: not route.source_warehouse_id)
+        if len(routes) > 1:
+            raise ValidationError(_(
+                "Multiple active intercompany routes match %(document)s. "
+                "Set a unique partner or warehouse route."
+            ) % {"document": source.display_name})
+        return routes[:1]
+
+    def _price_for_line(self, line, product, route):
+        if route.pricing_policy != "agreed":
+            return line.price_unit
+        return product.with_company(route.destination_company_id).lst_price
 
     def _get_product(self, line, target_company):
         product = line.product_id
@@ -98,7 +136,7 @@ class IntercompanyTradeService(models.AbstractModel):
                 "name": line.name,
                 "product_qty": line.product_uom_qty,
                 "uom_id": line.product_uom_id.id,
-                "price_unit": line.price_unit,
+                "price_unit": self._price_for_line(line, product, route),
                 "date_planned": order.date_order,
                 "tax_ids": [(6, 0, [])],
             }))
@@ -129,7 +167,7 @@ class IntercompanyTradeService(models.AbstractModel):
                 "name": line.name,
                 "product_uom_qty": line.product_qty,
                 "product_uom_id": line.uom_id.id,
-                "price_unit": line.price_unit,
+                "price_unit": self._price_for_line(line, product, route),
                 "discount": line.discount,
             }))
         return vals
@@ -208,6 +246,19 @@ class SaleOrder(models.Model):
                 service.sudo().process(event)
         return result
 
+    def action_intercompany_sync(self):
+        if not self.env.user.has_group("ff_intercompany_operations.group_intercompany_manager"):
+            raise AccessError(_("Only intercompany managers can synchronize manually."))
+        for order in self:
+            route = self.env["ff.intercompany.trade.service"]._route_for(
+                order, "sale.order", "purchase.order", trigger="manual"
+            )
+            if not route:
+                raise UserError(_("No manual intercompany route matches this sales order."))
+            event = self.env["ff.intercompany.event"].sudo().create_for_document(route, order, "manual")
+            self.env["ff.intercompany.event.service"].sudo().process(event)
+        return True
+
 
 class PurchaseOrder(models.Model):
     _inherit = "purchase.order"
@@ -254,3 +305,16 @@ class PurchaseOrder(models.Model):
             if event.state != "completed":
                 service.sudo().process(event)
         return result
+
+    def action_intercompany_sync(self):
+        if not self.env.user.has_group("ff_intercompany_operations.group_intercompany_manager"):
+            raise AccessError(_("Only intercompany managers can synchronize manually."))
+        for order in self:
+            route = self.env["ff.intercompany.trade.service"]._route_for(
+                order, "purchase.order", "sale.order", trigger="manual"
+            )
+            if not route:
+                raise UserError(_("No manual intercompany route matches this purchase order."))
+            event = self.env["ff.intercompany.event"].sudo().create_for_document(route, order, "manual")
+            self.env["ff.intercompany.event.service"].sudo().process(event)
+        return True

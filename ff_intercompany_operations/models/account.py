@@ -1,21 +1,45 @@
 from odoo import api, fields, models, _
-from odoo.exceptions import ValidationError, UserError
+from odoo.exceptions import AccessError, ValidationError, UserError
 
 
 class IntercompanyAccountService(models.AbstractModel):
     _name = "ff.intercompany.account.service"
     _description = "Intercompany Accounting Service"
 
-    def _route_for(self, move):
-        return self.env["ff.intercompany.route"].sudo().search([
+    def _route_for(self, move, trigger="posting"):
+        today = fields.Date.context_today(self)
+        routes = self.env["ff.intercompany.route"].sudo().search([
             ("active", "=", True),
             ("source_company_id", "=", move.company_id.id),
             ("source_document", "=", "account.move"),
             ("target_document", "=", "account.move"),
-            ("trigger", "=", "posting"),
+            ("trigger", "=", trigger),
             ("agreement_id.status", "=", "active"),
             ("agreement_id.active", "=", True),
-        ], limit=1)
+            ("agreement_id.effective_date", "<=", today),
+            "|", ("agreement_id.expiration_date", "=", False),
+            ("agreement_id.expiration_date", ">=", today),
+        ], order="sequence,id")
+        authorized = routes.filtered(
+            lambda route: not route.agreement_id.authorized_user_ids
+            or self.env.user in route.agreement_id.authorized_user_ids
+        )
+        if routes and not authorized:
+            raise ValidationError(_(
+                "You are not authorized to run this intercompany agreement."
+            ))
+        routes = authorized
+        specific = routes.filtered(lambda route: route.source_partner_id == move.partner_id)
+        if specific:
+            routes = specific
+        else:
+            routes = routes.filtered(lambda route: not route.source_partner_id)
+        if len(routes) > 1:
+            raise ValidationError(_(
+                "Multiple active intercompany routes match %(document)s. "
+                "Set a unique partner route."
+            ) % {"document": move.display_name})
+        return routes[:1]
 
     def process_event(self, event):
         move = self.env["account.move"].browse(event.source_res_id).exists()
@@ -41,12 +65,15 @@ class IntercompanyAccountService(models.AbstractModel):
             product = line.product_id
             if product and product.company_id and product.company_id != route.destination_company_id:
                 raise ValidationError(_("Product %s is not shared with the destination company.") % product.display_name)
+            price_unit = line.price_unit
+            if route.pricing_policy == "agreed" and product:
+                price_unit = product.with_company(route.destination_company_id).lst_price
             values["invoice_line_ids"].append((0, 0, {
                 "product_id": product.id if product else False,
                 "name": line.name,
                 "quantity": line.quantity,
                 "product_uom_id": line.product_uom_id.id if line.product_uom_id else False,
-                "price_unit": line.price_unit,
+                "price_unit": price_unit,
                 "discount": line.discount,
                 "tax_ids": [(6, 0, [])],
             }))
@@ -87,6 +114,16 @@ class AccountMove(models.Model):
             move.intercompany_sync_state = event.state if event else "none"
             move.intercompany_counterpart_ref = "%s/%s" % (link.target_model, link.target_res_id) if link else False
 
+    def action_view_intercompany_status(self):
+        self.ensure_one()
+        return {
+            "type": "ir.actions.act_window",
+            "name": _("Intercompany Links"),
+            "res_model": "ff.intercompany.document.link",
+            "view_mode": "list,form",
+            "domain": [("source_model", "=", "account.move"), ("source_res_id", "=", self.id)],
+        }
+
     def action_post(self):
         result = super().action_post()
         if self.env.context.get("ff_intercompany_skip_sync"):
@@ -101,3 +138,16 @@ class AccountMove(models.Model):
             if event.state != "completed":
                 service.process(event)
         return result
+
+    def action_intercompany_sync(self):
+        if not self.env.user.has_group("ff_intercompany_operations.group_intercompany_manager"):
+            raise AccessError(_("Only intercompany managers can synchronize manually."))
+        for move in self:
+            if move.move_type not in ("out_invoice", "out_refund"):
+                raise UserError(_("Manual intercompany synchronization supports customer invoices and credit notes only."))
+            route = self.env["ff.intercompany.account.service"]._route_for(move, trigger="manual")
+            if not route:
+                raise UserError(_("No manual intercompany route matches this invoice."))
+            event = self.env["ff.intercompany.event"].sudo().create_for_document(route, move, "manual")
+            self.env["ff.intercompany.event.service"].sudo().process(event)
+        return True

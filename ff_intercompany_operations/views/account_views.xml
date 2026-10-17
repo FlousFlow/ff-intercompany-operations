@@ -1,0 +1,18 @@
+<odoo>
+    <record id="account_move_view_intercompany" model="ir.ui.view">
+        <field name="name">account.move.form.intercompany</field>
+        <field name="model">account.move</field>
+        <field name="inherit_id" ref="account.view_move_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='partner_id']" position="after">
+                <field name="is_intercompany_document" readonly="1" groups="ff_intercompany_operations.group_intercompany_user"/>
+                <field name="intercompany_sync_state" readonly="1" groups="ff_intercompany_operations.group_intercompany_user"/>
+                <field name="intercompany_counterpart_ref" readonly="1" groups="ff_intercompany_operations.group_intercompany_user"/>
+            </xpath>
+            <xpath expr="//sheet" position="inside">
+                <button name="action_view_intercompany_status" type="object" string="Intercompany Links" class="oe_stat_button" icon="fa-exchange" groups="ff_intercompany_operations.group_intercompany_user" invisible="not is_intercompany_document"/>
+                <button name="action_intercompany_sync" type="object" string="Synchronize Manually" class="oe_stat_button" icon="fa-refresh" groups="ff_intercompany_operations.group_intercompany_manager" invisible="move_type not in ('out_invoice', 'out_refund') or state != 'posted'"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

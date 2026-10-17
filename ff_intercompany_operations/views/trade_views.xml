@@ -11,6 +11,7 @@
             </xpath>
             <xpath expr="//sheet" position="inside">
                 <button name="action_view_intercompany_status" type="object" string="Intercompany Links" class="oe_stat_button" icon="fa-exchange" groups="ff_intercompany_operations.group_intercompany_user" invisible="not is_intercompany_document"/>
+                <button name="action_intercompany_sync" type="object" string="Synchronize Manually" class="oe_stat_button" icon="fa-refresh" groups="ff_intercompany_operations.group_intercompany_manager" invisible="state not in ('sale', 'done')"/>
             </xpath>
         </field>
     </record>
@@ -26,6 +27,7 @@
             </xpath>
             <xpath expr="//sheet" position="inside">
                 <button name="action_view_intercompany_status" type="object" string="Intercompany Links" class="oe_stat_button" icon="fa-exchange" groups="ff_intercompany_operations.group_intercompany_user" invisible="not is_intercompany_document"/>
+                <button name="action_intercompany_sync" type="object" string="Synchronize Manually" class="oe_stat_button" icon="fa-refresh" groups="ff_intercompany_operations.group_intercompany_manager" invisible="state not in ('purchase', 'done')"/>
             </xpath>
         </field>
     </record>

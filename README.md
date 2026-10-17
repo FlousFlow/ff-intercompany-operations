@@ -26,7 +26,12 @@ The contact badge **Intercompany Counterparty** is informational and is calculat
 * Posted customer invoice / credit note → destination vendor bill / vendor credit note synchronization.
 * Counterpart documents are created in the configured destination company and remain draft by default.
 * Route policy `Auto Confirm` confirms only the commercial counterpart; it does not validate receipts or post invoices.
+* `Manual` routes do not run on confirmation/posting; an Intercompany Manager can use **Synchronize Manually** on the source document.
+* `Manual Approval` creates the counterpart in draft with a pending event; an Intercompany Manager approves it from the synchronization event.
+* `Agreed Commercial Price` uses the destination company's product sales price (`lst_price`) for each synchronized line.
+* Agreement effective/expiration dates and optional authorized administrators are enforced during route selection. An empty administrator list means all users with the normal company access can trigger automatic synchronization.
 * Sales Orders and Purchase Orders expose intercompany status and counterpart references.
+* Customer invoices and credit notes expose the same status and manual synchronization action.
 * Product taxes are not copied across companies; destination-company native defaults must determine them.
 * Accounting counterpart documents remain draft by default; payment, reconciliation, receipt validation, and stock movement are not automated.
 * Optional stock fulfillment, partial receipts, backorders, returns, and lot/serial traceability are not included in this release.

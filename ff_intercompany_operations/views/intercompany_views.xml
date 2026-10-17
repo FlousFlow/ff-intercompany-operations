@@ -14,6 +14,27 @@
     <record id="view_route_list" model="ir.ui.view"><field name="name">ff.intercompany.route.list</field><field name="model">ff.intercompany.route</field><field name="arch" type="xml"><list><field name="name"/><field name="agreement_id"/><field name="source_company_id"/><field name="destination_company_id"/><field name="source_document"/><field name="target_document"/><field name="active"/></list></field></record>
     <record id="view_route_form" model="ir.ui.view"><field name="name">ff.intercompany.route.form</field><field name="model">ff.intercompany.route</field><field name="arch" type="xml"><form><sheet><group><field name="name"/><field name="agreement_id"/><field name="counterparty_mapping_id"/><field name="source_company_id"/><field name="destination_company_id"/><field name="source_document"/><field name="target_document"/><field name="trigger"/><field name="approval_policy"/><field name="pricing_policy"/><field name="active"/></group><group><field name="source_partner_id"/><field name="destination_partner_id"/><field name="source_warehouse_id"/><field name="destination_warehouse_id"/><field name="integration_user_id"/></group></sheet></form></field></record>
     <record id="view_event_list" model="ir.ui.view"><field name="name">ff.intercompany.event.list</field><field name="model">ff.intercompany.event</field><field name="arch" type="xml"><list><field name="name"/><field name="source_model"/><field name="source_res_id"/><field name="target_model"/><field name="target_res_id"/><field name="route_id"/><field name="state"/><field name="approval_status"/><field name="attempt_count"/><field name="last_attempt"/></list></field></record>
+    <record id="view_event_form" model="ir.ui.view">
+        <field name="name">ff.intercompany.event.form</field>
+        <field name="model">ff.intercompany.event</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_retry" type="object" string="Retry" class="btn-secondary" groups="ff_intercompany_operations.group_intercompany_manager" invisible="state not in ('failed', 'blocked')"/>
+                    <button name="action_approve" type="object" string="Approve Counterpart" class="btn-primary" groups="ff_intercompany_operations.group_intercompany_manager" invisible="approval_status != 'pending'"/>
+                    <field name="state" widget="statusbar" statusbar_visible="pending,processing,completed,failed,blocked"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group><field name="name"/><field name="route_id"/><field name="event_type"/><field name="approval_status"/></group>
+                        <group><field name="source_company_id"/><field name="destination_company_id"/><field name="source_model"/><field name="source_res_id"/><field name="target_model"/><field name="target_res_id"/></group>
+                    </group>
+                    <group><field name="attempt_count"/><field name="last_attempt"/><field name="processed_at"/><field name="last_error_code"/><field name="last_error"/></group>
+                    <chatter/>
+                </sheet>
+            </form>
+        </field>
+    </record>
     <record id="action_agreements" model="ir.actions.act_window"><field name="name">Company Agreements</field><field name="res_model">ff.intercompany.agreement</field><field name="view_mode">list,form</field></record>
     <record id="action_routes" model="ir.actions.act_window"><field name="name">Synchronization Routes</field><field name="res_model">ff.intercompany.route</field><field name="view_mode">list,form</field></record>
     <record id="action_counterparties" model="ir.actions.act_window"><field name="name">Counterparty Mappings</field><field name="res_model">ff.intercompany.counterparty</field><field name="view_mode">list,form</field></record>

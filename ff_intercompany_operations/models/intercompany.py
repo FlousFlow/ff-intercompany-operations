@@ -53,6 +53,16 @@ class IntercompanyAgreement(models.Model):
                 if duplicate:
                     raise ValidationError(_("Only one active agreement is allowed for a company pair."))
 
+    def is_current(self, today=None):
+        self.ensure_one()
+        today = today or fields.Date.context_today(self)
+        return (
+            self.active
+            and self.status == "active"
+            and (not self.effective_date or self.effective_date <= today)
+            and (not self.expiration_date or self.expiration_date >= today)
+        )
+
 
 class IntercompanyCounterparty(models.Model):
     _name = "ff.intercompany.counterparty"
@@ -139,7 +149,12 @@ class IntercompanyRoute(models.Model):
     target_document = fields.Selection([("purchase.order", "Purchase Order"), ("sale.order", "Sales Order"), ("account.move", "Vendor Bill")], required=True)
     trigger = fields.Selection([("confirmation", "On Confirmation"), ("posting", "On Posting"), ("manual", "Manual")], required=True, default="confirmation")
     approval_policy = fields.Selection([("draft", "Create Draft"), ("auto", "Auto Confirm"), ("manual", "Manual Approval")], required=True, default="draft")
-    pricing_policy = fields.Selection([("document", "Document Price"), ("agreed", "Agreed Commercial Price")], required=True, default="document")
+    pricing_policy = fields.Selection(
+        [("document", "Document Price"), ("agreed", "Agreed Commercial Price")],
+        required=True,
+        default="document",
+        help="Agreed Commercial Price uses the destination company's product sales price.",
+    )
     active = fields.Boolean(default=True)
     source_partner_id = fields.Many2one("res.partner", ondelete="restrict", string="Source Partner")
     destination_partner_id = fields.Many2one("res.partner", ondelete="restrict", string="Destination Partner")
@@ -147,7 +162,11 @@ class IntercompanyRoute(models.Model):
     destination_warehouse_id = fields.Many2one("stock.warehouse", ondelete="restrict", string="Destination Warehouse")
     integration_user_id = fields.Many2one("res.users", ondelete="restrict")
 
-    @api.constrains("agreement_id", "counterparty_mapping_id", "source_company_id", "destination_company_id", "source_document", "target_document", "active", "source_partner_id", "destination_partner_id")
+    @api.constrains(
+        "agreement_id", "counterparty_mapping_id", "source_company_id", "destination_company_id",
+        "source_document", "target_document", "active", "source_partner_id", "destination_partner_id",
+        "source_warehouse_id", "destination_warehouse_id",
+    )
     def _check_route(self):
         for route in self:
             if route.source_company_id == route.destination_company_id:
@@ -158,6 +177,10 @@ class IntercompanyRoute(models.Model):
                 raise ValidationError(_("Sales Order routes must target Purchase Orders in this release."))
             if route.source_document == "purchase.order" and route.target_document != "sale.order":
                 raise ValidationError(_("Purchase Order routes must target Sales Orders in this release."))
+            if route.source_warehouse_id and route.source_warehouse_id.company_id != route.source_company_id:
+                raise ValidationError(_("The source warehouse must belong to the source company."))
+            if route.destination_warehouse_id and route.destination_warehouse_id.company_id != route.destination_company_id:
+                raise ValidationError(_("The destination warehouse must belong to the destination company."))
             if route.active and (route.source_partner_id or route.destination_partner_id) and not route.counterparty_mapping_id:
                 raise ValidationError(_("An active route with contacts requires an explicit counterparty mapping."))
             if route.counterparty_mapping_id:
@@ -234,6 +257,27 @@ class IntercompanyEvent(models.Model):
         if not self.env.user.has_group("ff_intercompany_operations.group_intercompany_manager"):
             raise UserError(_("Only intercompany managers can retry events."))
         self.write({"state": "pending", "last_error": False, "last_error_code": False})
+        return True
+
+    def action_approve(self):
+        if not self.env.user.has_group("ff_intercompany_operations.group_intercompany_manager"):
+            raise UserError(_("Only intercompany managers can approve events."))
+        for event in self:
+            if event.approval_status != "pending" or not event.target_res_id:
+                continue
+            target = self.env[event.target_model].sudo().browse(event.target_res_id).exists()
+            if not target:
+                raise ValidationError(_("The counterpart document no longer exists."))
+            target = target.with_context(ff_intercompany_skip_sync=True)
+            if target._name == "purchase.order":
+                target.button_confirm()
+            elif target._name == "sale.order":
+                target.action_confirm()
+            elif target._name == "account.move":
+                target.action_post()
+            else:
+                raise UserError(_("Unsupported approval document: %s") % target._name)
+            event.write({"approval_status": "approved"})
         return True
 
 

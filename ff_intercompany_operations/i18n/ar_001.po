@@ -1191,3 +1191,68 @@ msgstr "يتطلب مسار الحسابات جهة اتصال مورد في ا�
 #: code:addons/ff_intercompany_operations/models/account.py:0
 msgid "The source invoice is unavailable or is not a customer invoice."
 msgstr "الفاتورة المصدر غير متاحة أو ليست فاتورة عميل."
+
+#. module: ff_intercompany_operations
+#. odoo-python
+msgid "You are not authorized to run this intercompany agreement."
+msgstr "ليس لديك صلاحية لتشغيل اتفاقية المزامنة بين الشركات هذه."
+
+#. module: ff_intercompany_operations
+#. odoo-python
+msgid "Multiple active intercompany routes match %(document)s. Set a unique partner or warehouse route."
+msgstr "يوجد أكثر من مسار نشط يطابق %(document)s. حدد مسارًا فريدًا حسب جهة الاتصال أو المستودع."
+
+#. module: ff_intercompany_operations
+#. odoo-python
+msgid "Multiple active intercompany routes match %(document)s. Set a unique partner route."
+msgstr "يوجد أكثر من مسار نشط يطابق %(document)s. حدد مسارًا فريدًا حسب جهة الاتصال."
+
+#. module: ff_intercompany_operations
+#. odoo-python
+msgid "Only intercompany managers can synchronize manually."
+msgstr "مديرو المزامنة بين الشركات فقط يمكنهم تنفيذ المزامنة اليدوية."
+
+#. module: ff_intercompany_operations
+#. odoo-python
+msgid "Only intercompany managers can approve events."
+msgstr "مديرو المزامنة بين الشركات فقط يمكنهم اعتماد الأحداث."
+
+#. module: ff_intercompany_operations
+#. odoo-python
+msgid "The counterpart document no longer exists."
+msgstr "لم يعد المستند المقابل موجودًا."
+
+#. module: ff_intercompany_operations
+#. odoo-python
+msgid "Unsupported approval document: %s"
+msgstr "مستند اعتماد غير مدعوم: %s"
+
+#. module: ff_intercompany_operations
+#. odoo-python
+msgid "No manual intercompany route matches this sales order."
+msgstr "لا يوجد مسار يدوي بين الشركات يطابق أمر البيع هذا."
+
+#. module: ff_intercompany_operations
+#. odoo-python
+msgid "No manual intercompany route matches this purchase order."
+msgstr "لا يوجد مسار يدوي بين الشركات يطابق أمر الشراء هذا."
+
+#. module: ff_intercompany_operations
+#. odoo-python
+msgid "Manual intercompany synchronization supports customer invoices and credit notes only."
+msgstr "المزامنة اليدوية بين الشركات تدعم فواتير العملاء والإشعارات الدائنة فقط."
+
+#. module: ff_intercompany_operations
+#. odoo-python
+msgid "No manual intercompany route matches this invoice."
+msgstr "لا يوجد مسار يدوي بين الشركات يطابق هذه الفاتورة."
+
+#. module: ff_intercompany_operations
+#. odoo-python
+msgid "The source warehouse must belong to the source company."
+msgstr "يجب أن يتبع مستودع المصدر الشركة المصدر."
+
+#. module: ff_intercompany_operations
+#. odoo-python
+msgid "The destination warehouse must belong to the destination company."
+msgstr "يجب أن يتبع مستودع الوجهة الشركة الوجهة."

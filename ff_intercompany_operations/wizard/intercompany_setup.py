@@ -59,7 +59,7 @@ class IntercompanySetupWizard(models.TransientModel):
         ("document", "Use Source Document Price"),
         ("agreed", "Use Agreed Commercial Price"),
     ], string="Pricing", required=True, default="document",
-        help="Choose whether to copy the source price or use the agreed commercial price for the route.")
+        help="Choose whether to copy the source price or use the destination company's product sales price as the agreed commercial price.")
 
     @api.onchange("company_a_id")
     def _onchange_company_a_id(self):
