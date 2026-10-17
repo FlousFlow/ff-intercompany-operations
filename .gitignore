@@ -1,5 +1,6 @@
 __pycache__/
 *.py[cod]
+*.mo
 .DS_Store
 outputs/
 work/
