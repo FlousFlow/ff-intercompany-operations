@@ -1,0 +1,9 @@
+id,name,model_id,group_id/id,operation,domain
+access_agreement_manager,agreement manager,ff.intercompany.agreement,ff_intercompany_operations.group_intercompany_manager,crud,
+access_counterparty_manager,counterparty manager,ff.intercompany.counterparty,ff_intercompany_operations.group_intercompany_manager,crud,
+access_route_manager,route manager,ff.intercompany.route,ff_intercompany_operations.group_intercompany_manager,crud,
+access_event_user,event user,ff.intercompany.event,ff_intercompany_operations.group_intercompany_user,r,"['|', ('source_company_id', 'in', company_ids), ('destination_company_id', 'in', company_ids)]"
+access_event_manager,event manager,ff.intercompany.event,ff_intercompany_operations.group_intercompany_manager,crud,
+access_link_user,link user,ff.intercompany.document.link,ff_intercompany_operations.group_intercompany_user,r,"['|', ('source_company_id', 'in', company_ids), ('target_company_id', 'in', company_ids)]"
+access_link_manager,link manager,ff.intercompany.document.link,ff_intercompany_operations.group_intercompany_manager,crud,
+access_intercompany_setup_wizard,intercompany quick setup,ff.intercompany.setup.wizard,ff_intercompany_operations.group_intercompany_manager,crud,

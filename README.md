@@ -4,7 +4,7 @@ Odoo 20 Community implementation for configuration-driven intercompany operation
 
 ## Apps Store release
 
-This release contains three installable addons. Install `ff_intercompany_base` first, then install the optional `ff_intercompany_trade` and `ff_intercompany_account` addons according to the Odoo apps installed in the database.
+This release contains one installable Odoo application: `ff_intercompany_operations`. It includes the base agreement/route engine, Sales/Purchase synchronization, and Accounting document synchronization in one package.
 
 The safest production policy is to create destination documents as drafts. Review the company pair, counterparty contacts, warehouses, journals, currencies, taxes, and access groups before activating a route. Automatic confirmation is intentionally opt-in.
 
@@ -20,10 +20,10 @@ The contact badge **Intercompany Counterparty** is informational and is calculat
 
 ## Current scope
 
-* `ff_intercompany_base`: agreements, routes, durable events, document links, Odoo 20 `ir.access` security, and idempotency constraints.
+* Agreements, routes, durable events, document links, Odoo 20 `ir.access` security, and idempotency constraints.
 * Explicit counterparty mappings mark the participating contacts and are validated against active routes.
-* `ff_intercompany_trade`: native Sales Order → draft Purchase Order and Purchase Order → draft Sales Order synchronization.
-* `ff_intercompany_account`: posted customer invoice / credit note → destination vendor bill / vendor credit note synchronization.
+* Native Sales Order → draft Purchase Order and Purchase Order → draft Sales Order synchronization.
+* Posted customer invoice / credit note → destination vendor bill / vendor credit note synchronization.
 * Counterpart documents are created in the configured destination company and remain draft by default.
 * Route policy `Auto Confirm` confirms only the commercial counterpart; it does not validate receipts or post invoices.
 * Sales Orders and Purchase Orders expose intercompany status and counterpart references.
@@ -33,8 +33,8 @@ The contact badge **Intercompany Counterparty** is informational and is calculat
 
 ## Publishing notes
 
-* This repository contains three installable addons. Publish the base addon together with its dependent trade and accounting addons, or package each addon as a separate Apps artifact while preserving the dependency names.
-* Arabic translations are shipped in each addon's `i18n/ar_001.po` file.
+* This repository contains one installable addon: `ff_intercompany_operations`.
+* Arabic translations are shipped in `ff_intercompany_operations/i18n/ar_001.po`.
 * The default route policy is Draft. Review company mappings, journals, currencies, and access groups before enabling Auto Confirm or production installation.
 
 ## Odoo 20 test command
@@ -44,8 +44,8 @@ The contact badge **Intercompany Counterparty** is informational and is calculat
   /Users/mohamedgamal/Desktop/odoo20/odoo-bin \
   -d odoo20_module_test --db_host=/tmp --db_user=mohamedgamal \
   --addons-path=/Users/mohamedgamal/Desktop/odoo20/addons,/Users/mohamedgamal/Desktop/odoo20/odoo/addons,$PWD \
-  --test-enable --test-tags=ff_intercompany_trade,ff_intercompany_account \
-  --stop-after-init --log-level=test -u ff_intercompany_base,ff_intercompany_trade,ff_intercompany_account
+  --test-enable --test-tags=ff_intercompany_operations \
+  --stop-after-init --log-level=test -i ff_intercompany_operations
 ```
 
 The test database is disposable development data. Do not run installation or upgrades against production without a backup and explicit authorization.

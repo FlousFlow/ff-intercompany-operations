@@ -4,3 +4,9 @@ __pycache__/
 .DS_Store
 outputs/
 work/
+
+# Legacy split addons kept locally for compatibility with the running dev server.
+# The Apps Store release is the single monolithic ff_intercompany_operations addon.
+ff_intercompany_base/
+ff_intercompany_trade/
+ff_intercompany_account/
