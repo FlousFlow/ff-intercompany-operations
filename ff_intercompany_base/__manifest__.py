@@ -9,6 +9,8 @@ FF Intercompany Operations provides a controlled, configuration-driven foundatio
 Features include company agreements, explicit counterparty mappings, route policies, durable events, idempotency protection, multi-company security, and Arabic translations.
 """,
     "author": "Flous Flow",
+    "website": "https://flousflow.com",
+    "support": "support@flousflow.com",
     "license": "LGPL-3",
     "depends": ["base", "mail", "stock"],
     "data": [
