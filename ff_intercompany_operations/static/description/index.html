@@ -1,24 +1,43 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8"><title>Intercompany Operations</title></head>
+<head>
+  <meta charset="utf-8">
+  <title>Intercompany Operations</title>
+</head>
 <body>
-<h1>Intercompany Operations</h1>
-<p><strong>By Flous Flow</strong> · <a href="mailto:support@flousflow.com">Support</a></p>
-<p>One Odoo 20 application for controlled intercompany Sales/Purchase and Accounting synchronization between legal companies.</p>
-<h2>What is included</h2>
-<ul>
-  <li>Quick Setup for source/destination companies and document direction.</li>
-  <li>Sales Order → Purchase Order and Purchase Order → Sales Order synchronization.</li>
-  <li>Posted customer invoice/credit note → draft vendor bill/credit note synchronization.</li>
-  <li>Draft-first policies, optional commercial-counterpart confirmation, and durable event tracking.</li>
-  <li>Manual synchronization and manager approval for controlled operations.</li>
-  <li>Agreement date windows, authorized administrators, and destination-company agreed pricing.</li>
-  <li>Explicit counterparty mapping with a visible Intercompany Counterparty badge.</li>
-  <li>Multi-company security, idempotency protection, Arabic translations, and operational links.</li>
-</ul>
-<h2>Recommended rollout</h2>
-<p>Start with Create a Draft. Review counterparties, warehouses, journals, currencies, taxes, and access groups before enabling automatic confirmation.</p>
-<p><img src="quick_setup.png" alt="Quick Intercompany Setup"/></p>
-<p><img src="setup_help.png" alt="Setup guidance"/></p>
+  <h1>Intercompany Operations</h1>
+  <p><strong>By Flous Flow</strong> · <a href="mailto:support@flousflow.com">Support</a></p>
+  <p>One Odoo 20 application for controlled intercompany Sales, Purchase, and Accounting synchronization between legal companies.</p>
+
+  <h2>What is included</h2>
+  <ul>
+    <li>Quick Setup for source and destination companies, counterparties, and document direction.</li>
+    <li>Sales Order → Purchase Order and Purchase Order → Sales Order synchronization.</li>
+    <li>Posted customer invoice or credit note → draft vendor bill or credit note synchronization.</li>
+    <li>Draft-first policies, optional commercial-counterpart confirmation, and durable event tracking.</li>
+    <li>Manual synchronization and manager approval for controlled operations.</li>
+    <li>Agreement date windows, authorized administrators, and destination-company agreed pricing.</li>
+    <li>Explicit counterparty mapping with a visible Intercompany Counterparty badge.</li>
+    <li>Multi-company security, idempotency protection, Arabic translations, and operational links.</li>
+  </ul>
+
+  <h2>Recommended rollout</h2>
+  <ol>
+    <li>Create the two legal companies and their intercompany contact mappings.</li>
+    <li>Start with <strong>Create a Draft</strong> and verify products, warehouses, journals, currencies, and taxes.</li>
+    <li>Test one Sales Order → Purchase Order flow in a staging database.</li>
+    <li>Only then enable automatic confirmation for approved users.</li>
+  </ol>
+
+  <h2>Quick setup</h2>
+  <p>Choose the source and destination companies, select the direction, and keep the default document action as <strong>Create a Draft</strong> until the workflow is approved.</p>
+  <p><img src="quick_setup.png" alt="Quick Intercompany Setup screen" style="max-width:100%;height:auto;"/></p>
+
+  <h2>Configuration guidance</h2>
+  <p>Each agreement is explicit: the counterpart contact, direction, date window, document action, pricing policy, and authorized users are visible before activation.</p>
+  <p><img src="setup_help.png" alt="Intercompany configuration guidance" style="max-width:100%;height:auto;"/></p>
+
+  <h2>Scope</h2>
+  <p>This release creates controlled counterpart documents and accounting documents. Payments, reconciliation, receipt validation, and stock movement automation are intentionally outside this release.</p>
 </body>
 </html>
