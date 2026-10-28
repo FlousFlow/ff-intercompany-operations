@@ -137,7 +137,9 @@ class IntercompanyTradeService(models.AbstractModel):
                 "product_qty": line.product_uom_qty,
                 "uom_id": line.product_uom_id.id,
                 "price_unit": self._price_for_line(line, product, route),
+                "discount": line.discount,
                 "date_planned": order.date_order,
+                "ff_intercompany_source_line_id": line.id,
                 "tax_ids": [(6, 0, [])],
             }))
         return vals
@@ -195,7 +197,11 @@ class IntercompanyEventProcessor(models.AbstractModel):
     _inherit = "ff.intercompany.event.service"
 
     def _process_event(self, event):
-        if event.route_id.source_document in ("sale.order", "purchase.order"):
+        if (
+            event.source_model == event.route_id.source_document
+            and event.target_model == event.route_id.target_document
+            and event.source_model in ("sale.order", "purchase.order")
+        ):
             return self.env["ff.intercompany.trade.service"].process_event(event)
         return super()._process_event(event)
 
@@ -318,3 +324,16 @@ class PurchaseOrder(models.Model):
             event = self.env["ff.intercompany.event"].sudo().create_for_document(route, order, "manual")
             self.env["ff.intercompany.event.service"].sudo().process(event)
         return True
+
+
+class PurchaseOrderLine(models.Model):
+    _inherit = "purchase.order.line"
+
+    ff_intercompany_source_line_id = fields.Many2one(
+        "sale.order.line",
+        string="Intercompany Source Sales Line",
+        copy=False,
+        index=True,
+        ondelete="set null",
+        help="Sales order line that generated this intercompany purchase line.",
+    )

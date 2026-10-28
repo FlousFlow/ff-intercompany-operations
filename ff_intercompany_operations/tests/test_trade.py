@@ -1,7 +1,8 @@
 from odoo.tests.common import TransactionCase, tagged
 from datetime import date, timedelta
+from odoo import fields
 
-from odoo.exceptions import AccessError, ValidationError
+from odoo.exceptions import AccessError, UserError, ValidationError
 
 
 @tagged("ff_intercompany_operations", "at_install", "-post_install")
@@ -137,6 +138,137 @@ class TestIntercompanyTrade(TransactionCase):
         order.action_confirm()
         target = self.env["purchase.order"].search([("origin", "ilike", order.name)], limit=1)
         self.assertEqual(target.order_line.price_unit, 175)
+
+    def test_posted_customer_credit_creates_matching_vendor_credit_and_blocks_draft_reset(self):
+        self.route.write({"approval_policy": "auto", "pricing_policy": "document"})
+        order = self.env["sale.order"].create({
+            "company_id": self.company_a.id,
+            "partner_id": self.customer_b.id,
+            "order_line": [(0, 0, {
+                "product_id": self.product.id,
+                "product_uom_qty": 4,
+                "price_unit": 25,
+                "discount": 10,
+            })],
+        })
+        order.action_confirm()
+        purchase_order = self.env["purchase.order"].search([
+            ("origin", "ilike", order.name),
+            ("company_id", "=", self.company_b.id),
+        ], limit=1)
+        self.assertEqual(purchase_order.state, "purchase")
+        purchase_line = purchase_order.order_line.filtered(lambda line: not line.display_type)
+        self.assertEqual(purchase_line.ff_intercompany_source_line_id, order.order_line)
+        self.assertEqual(purchase_line.discount, 10)
+
+        sale_journal = self.env["account.journal"].search([
+            ("company_id", "=", self.company_a.id), ("type", "=", "sale"),
+        ], limit=1)
+        if not sale_journal:
+            sale_journal = self.env["account.journal"].create({
+                "name": "IC Trade Sales",
+                "code": "ICTS",
+                "type": "sale",
+                "company_id": self.company_a.id,
+            })
+        purchase_journal = self.env["account.journal"].search([
+            ("company_id", "=", self.company_b.id), ("type", "=", "purchase"),
+        ], limit=1)
+        if not purchase_journal:
+            purchase_journal = self.env["account.journal"].create({
+                "name": "IC Trade Purchases",
+                "code": "ICTP",
+                "type": "purchase",
+                "company_id": self.company_b.id,
+            })
+        income_account = self.env["account.account"].search([
+            ("company_ids", "in", self.company_a.id), ("account_type", "=", "income"),
+        ], limit=1)
+        if not income_account:
+            income_account = self.env["account.account"].create({
+                "name": "IC Trade Income",
+                "code": "ICTI",
+                "account_type": "income",
+                "company_ids": [(4, self.company_a.id)],
+            })
+        expense_account = self.env["account.account"].search([
+            ("company_ids", "in", self.company_b.id), ("account_type", "=", "expense"),
+        ], limit=1)
+        if not expense_account:
+            expense_account = self.env["account.account"].create({
+                "name": "IC Trade Expense",
+                "code": "ICTE",
+                "account_type": "expense",
+                "company_ids": [(4, self.company_b.id)],
+            })
+        payable_account = self.env["account.account"].search([
+            ("company_ids", "in", self.company_b.id),
+            ("account_type", "=", "liability_payable"),
+        ], limit=1)
+        if not payable_account:
+            payable_account = self.env["account.account"].create({
+                "name": "IC Trade Payable",
+                "code": "ICTP2",
+                "account_type": "liability_payable",
+                "reconcile": True,
+                "company_ids": [(4, self.company_b.id)],
+            })
+        self.vendor_a.with_company(self.company_b).property_account_payable_id = payable_account
+
+        invoice = self.env["account.move"].create({
+            "move_type": "out_invoice",
+            "company_id": self.company_a.id,
+            "journal_id": sale_journal.id,
+            "partner_id": self.customer_b.id,
+            "invoice_line_ids": [(0, 0, {
+                "name": "Intercompany goods",
+                "product_id": self.product.id,
+                "quantity": 4,
+                "product_uom_id": self.product.uom_id.id,
+                "price_unit": 25,
+                "discount": 10,
+                "account_id": income_account.id,
+                "sale_line_ids": [(6, 0, order.order_line.ids)],
+            })],
+        })
+        invoice.action_post()
+        bill_line_values = purchase_line._prepare_account_move_line()
+        bill_line_values.update({
+            "quantity": 4,
+            "price_unit": 25,
+            "discount": 10,
+            "account_id": expense_account.id,
+            "purchase_line_id": purchase_line.id,
+        })
+        vendor_bill = self.env["account.move"].with_company(self.company_b).create({
+            "move_type": "in_invoice",
+            "company_id": self.company_b.id,
+            "journal_id": purchase_journal.id,
+            "partner_id": self.vendor_a.id,
+            "invoice_date": fields.Date.context_today(self.env.user),
+            "invoice_line_ids": [(0, 0, bill_line_values)],
+        })
+        vendor_bill.action_post()
+
+        customer_credit = invoice._reverse_moves()
+        customer_credit.invoice_line_ids.filtered(
+            lambda line: line.product_id
+        ).write({"quantity": 2})
+        customer_credit.action_post()
+        event = self.env["ff.intercompany.event"].search([
+            ("source_model", "=", "account.move"),
+            ("source_res_id", "=", customer_credit.id),
+            ("route_id", "=", self.route.id),
+        ], limit=1)
+        self.assertEqual(event.state, "completed")
+        vendor_credit = self.env["account.move"].browse(event.target_res_id)
+        self.assertEqual(vendor_credit.move_type, "in_refund")
+        self.assertEqual(vendor_credit.state, "posted")
+        self.assertEqual(vendor_credit.invoice_line_ids.quantity, 2)
+        self.assertEqual(vendor_credit.invoice_line_ids.price_unit, 25)
+        self.assertEqual(vendor_credit.invoice_line_ids.discount, 10)
+        with self.assertRaises(UserError):
+            customer_credit.button_draft()
 
     def test_authorized_users_restrict_synchronization(self):
         user = self.env["res.users"].create({

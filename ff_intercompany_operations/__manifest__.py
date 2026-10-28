@@ -1,6 +1,6 @@
 {
     "name": "Intercompany Operations",
-    "version": "20.0.1.0.3",
+    "version": "20.0.1.0.4",
     "category": "Operations",
     "summary": "Configuration-driven intercompany synchronization for Odoo 20",
     "description": """
@@ -21,7 +21,7 @@ Arabic translations.
         "static/description/quick_setup.png",
         "static/description/setup_help.png",
     ],
-    "depends": ["base", "mail", "stock", "sale_management", "purchase", "account"],
+    "depends": ["base", "mail", "stock", "sale_management", "purchase", "account", "stock_auto_billing"],
     "data": [
         "security/security.xml",
         "security/ir.access.csv",

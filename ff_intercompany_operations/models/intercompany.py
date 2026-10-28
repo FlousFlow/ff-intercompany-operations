@@ -236,7 +236,7 @@ class IntercompanyEvent(models.Model):
         return hashlib.sha256(raw.encode()).hexdigest()
 
     @api.model
-    def create_for_document(self, route, source, event_type):
+    def create_for_document(self, route, source, event_type, target_model=None):
         key = self.make_key(route, source._name, source.id, event_type)
         existing = self.search([("idempotency_key", "=", key)], limit=1)
         if existing:
@@ -246,7 +246,7 @@ class IntercompanyEvent(models.Model):
             "destination_company_id": route.destination_company_id.id,
             "source_model": source._name,
             "source_res_id": source.id,
-            "target_model": route.target_document,
+            "target_model": target_model or route.target_document,
             "route_id": route.id,
             "event_type": event_type,
             "idempotency_key": key,
@@ -307,6 +307,11 @@ class IntercompanyDocumentLink(models.Model):
     def create_for_event(self, event, target):
         existing = self.search([("event_id", "=", event.id)], limit=1)
         if existing:
+            existing.write({
+                "target_model": target._name,
+                "target_res_id": target.id,
+                "synchronization_status": "active",
+            })
             return existing
         return self.create({
             "agreement_id": event.route_id.agreement_id.id,
@@ -318,6 +323,7 @@ class IntercompanyDocumentLink(models.Model):
             "target_model": target._name,
             "target_res_id": target.id,
             "event_id": event.id,
+            "operation_type": "accounting" if event.source_model == "account.move" else "trade",
         })
 
 
@@ -334,7 +340,10 @@ class IntercompanyEventService(models.AbstractModel):
             target = self._process_event(event)
             event.write({
                 "state": "completed", "target_res_id": target.id, "processed_at": fields.Datetime.now(),
-                "approval_status": "pending" if event.route_id.approval_policy == "manual" else "approved",
+                "approval_status": "pending"
+                if event.route_id.approval_policy == "manual"
+                or (target._name == "account.move" and target.state != "posted")
+                else "approved",
                 "last_error": False, "last_error_code": False,
             })
             self.env["ff.intercompany.document.link"].create_for_event(event, target)
