@@ -248,6 +248,8 @@ class TestIntercompanyTrade(TransactionCase):
             "invoice_date": fields.Date.context_today(self.env.user),
             "invoice_line_ids": [(0, 0, bill_line_values)],
         })
+        with self.assertRaises(UserError):
+            invoice.button_draft()
         vendor_bill.action_post()
 
         customer_credit = invoice._reverse_moves()

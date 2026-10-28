@@ -506,7 +506,7 @@ class AccountMove(models.Model):
                     posted_target_bill_line = self.env["account.move.line"].sudo().search([
                         ("purchase_line_id", "in", purchase_lines.ids),
                         ("move_id.move_type", "=", "in_invoice"),
-                        ("move_id.state", "=", "posted"),
+                        ("move_id.state", "in", ["draft", "posted"]),
                         ("move_id.company_id", "=", route.destination_company_id.id),
                     ], limit=1)
                     if posted_target_bill_line:
