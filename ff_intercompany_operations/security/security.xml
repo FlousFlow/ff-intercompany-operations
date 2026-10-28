@@ -21,4 +21,8 @@
         <field name="privilege_id" ref="privilege_intercompany"/>
         <field name="user_ids" eval="[(4, ref('base.user_admin'))]"/>
     </record>
+    <!-- Odoo settings administrators can manage intercompany configuration. -->
+    <record id="base.group_system" model="res.groups">
+        <field name="implied_ids" eval="[(4, ref('ff_intercompany_operations.group_intercompany_manager'))]"/>
+    </record>
 </odoo>
