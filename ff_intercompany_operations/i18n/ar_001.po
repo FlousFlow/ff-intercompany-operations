@@ -685,9 +685,7 @@ msgstr "تمت المعالجة في"
 msgid "Processing"
 msgstr "قيد المعالجة"
 
-#. #-#-#-#-#  ff_combined.po (Odoo Server 20.0)  #-#-#-#-#
 #. module: ff_intercompany_operations
-#. #-#-#-#-#  ff_combined.po (Odoo Server 20.0)  #-#-#-#-#
 #. module: ff_intercompany_operations
 #: model:ir.model.fields.selection,name:ff_intercompany_operations.selection__ff_intercompany_route__source_document__purchase_order
 #: model:ir.model.fields.selection,name:ff_intercompany_operations.selection__ff_intercompany_route__target_document__purchase_order
@@ -735,9 +733,7 @@ msgstr "جهة اتصال المصدر في المسار لا تطابق تعي�
 msgid "Routes"
 msgstr "المسارات"
 
-#. #-#-#-#-#  ff_combined.po (Odoo Server 20.0)  #-#-#-#-#
 #. module: ff_intercompany_operations
-#. #-#-#-#-#  ff_combined.po (Odoo Server 20.0)  #-#-#-#-#
 #. module: ff_intercompany_operations
 #: model:ir.model.fields.selection,name:ff_intercompany_operations.selection__ff_intercompany_route__source_document__sale_order
 #: model:ir.model.fields.selection,name:ff_intercompany_operations.selection__ff_intercompany_route__target_document__sale_order
@@ -1040,9 +1036,7 @@ msgstr ""
 msgid "A trade line is missing a product."
 msgstr "يوجد سطر تجاري بدون منتج."
 
-#. #-#-#-#-#  ff_combined.po (Odoo Server 20.0)  #-#-#-#-#
 #. module: ff_intercompany_operations
-#. #-#-#-#-#  ff_combined.po (Odoo Server 20.0)  #-#-#-#-#
 #. module: ff_intercompany_operations
 #: model:ir.model.fields,field_description:ff_intercompany_operations.field_purchase_order__intercompany_counterpart_ref
 #: model:ir.model.fields,field_description:ff_intercompany_operations.field_sale_order__intercompany_counterpart_ref
@@ -1065,9 +1059,7 @@ msgstr "تم إنشاء المستند المقابل"
 msgid "Intercompany Links"
 msgstr "روابط بين الشركات"
 
-#. #-#-#-#-#  ff_combined.po (Odoo Server 20.0)  #-#-#-#-#
 #. module: ff_intercompany_operations
-#. #-#-#-#-#  ff_combined.po (Odoo Server 20.0)  #-#-#-#-#
 #. module: ff_intercompany_operations
 #: model:ir.model.fields,field_description:ff_intercompany_operations.field_purchase_order__intercompany_sync_state
 #: model:ir.model.fields,field_description:ff_intercompany_operations.field_sale_order__intercompany_sync_state
@@ -1081,10 +1073,8 @@ msgstr "حالة المعاملة بين الشركات"
 msgid "Intercompany Trade Service"
 msgstr "خدمة التجارة بين الشركات"
 
-#. #-#-#-#-#  ff_combined.po (Odoo Server 20.0)  #-#-#-#-#
 #. module: ff_intercompany_operations
 #. odoo-python
-#. #-#-#-#-#  ff_combined.po (Odoo Server 20.0)  #-#-#-#-#
 #. module: ff_intercompany_operations
 #. odoo-python
 #: code:addons/ff_intercompany_operations/models/trade.py:0
