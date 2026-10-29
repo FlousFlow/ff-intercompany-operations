@@ -1,6 +1,6 @@
 {
     "name": "Intercompany Operations",
-    "version": "20.0.1.0.5",
+    "version": "20.0.1.0.6",
     "category": "Operations",
     "summary": "Configuration-driven intercompany synchronization for Odoo 20",
     "description": """

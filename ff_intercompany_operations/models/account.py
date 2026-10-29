@@ -106,7 +106,9 @@ class IntercompanyAccountService(models.AbstractModel):
             "invoice_line_ids": [],
         }
         target_model = self.env["account.move"].sudo().with_company(route.destination_company_id)
-        for line in move.invoice_line_ids.filtered(lambda l: not l.display_type):
+        for line in move.invoice_line_ids.filtered(
+            lambda line: line.display_type in (False, "product")
+        ):
             product = line.product_id
             if product and product.company_id and product.company_id != route.destination_company_id:
                 raise ValidationError(_("Product %s is not shared with the destination company.") % product.display_name)
@@ -444,10 +446,33 @@ class AccountMove(models.Model):
             "domain": [("source_model", "=", "account.move"), ("source_res_id", "=", self.id)],
         }
 
+    def _post(self, soft=True):
+        result = super()._post(soft=soft)
+        if self.env.context.get("ff_intercompany_skip_sync"):
+            return result
+        self._ff_sync_posted_intercompany_moves()
+        return result
+
     def action_post(self):
         result = super().action_post()
         if self.env.context.get("ff_intercompany_skip_sync"):
             return result
+        source_credits = self.filtered(
+            lambda move: move.state == "posted"
+            and move.move_type == "out_refund"
+            and move.sab_created_from_stock_return
+        )
+        for credit in source_credits:
+            source_returns = self.env["stock.picking"].sudo().search([
+                ("auto_account_move_id", "=", credit.id),
+                ("state", "=", "done"),
+                ("picking_type_code", "=", "incoming"),
+            ])
+            for source_return in source_returns:
+                source_return._ff_sync_intercompany_return()
+        return result
+
+    def _ff_sync_posted_intercompany_moves(self):
         event_model = self.env["ff.intercompany.event"].sudo()
         service = self.env["ff.intercompany.event.service"].sudo()
         for move in self.filtered(
@@ -478,15 +503,6 @@ class AccountMove(models.Model):
             event = event_model.create_for_document(route, move, "posting", target_model="account.move")
             if event.state != "completed":
                 service.process(event)
-            if move.move_type == "out_refund" and move.sab_created_from_stock_return:
-                source_returns = self.env["stock.picking"].sudo().search([
-                    ("auto_account_move_id", "=", move.id),
-                    ("state", "=", "done"),
-                    ("picking_type_code", "=", "incoming"),
-                ])
-                for source_return in source_returns:
-                    source_return._ff_sync_intercompany_return()
-        return result
 
     def button_draft(self):
         if self.env.context.get("ff_intercompany_skip_draft_guard"):

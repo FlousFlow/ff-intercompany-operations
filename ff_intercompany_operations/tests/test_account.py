@@ -1,3 +1,4 @@
+from odoo import fields
 from odoo.tests.common import TransactionCase, tagged
 
 
@@ -106,3 +107,52 @@ class TestIntercompanyAccount(TransactionCase):
         ], limit=1)
         self.assertEqual(event.state, "completed")
         self.assertEqual(self.env["account.move"].browse(event.target_res_id).state, "draft")
+
+    def test_reverse_and_modify_syncs_credit_posted_via_internal_post(self):
+        journal = self.env["account.journal"].search([
+            ("company_id", "=", self.company_a.id), ("type", "=", "sale")
+        ], limit=1)
+        income_account = self.env["account.account"].search([
+            ("company_ids", "in", self.company_a.id), ("account_type", "=", "income")
+        ], limit=1)
+        invoice = self.env["account.move"].create({
+            "move_type": "out_invoice",
+            "company_id": self.company_a.id,
+            "journal_id": journal.id,
+            "partner_id": self.customer.id,
+            "invoice_line_ids": [(0, 0, {
+                "name": "Invoice to reverse and modify",
+                "quantity": 10,
+                "price_unit": 250,
+                "account_id": income_account.id,
+            })],
+        })
+        invoice.action_post()
+
+        wizard = self.env["account.move.reversal"].create({
+            "move_ids": [(6, 0, invoice.ids)],
+            "company_id": self.company_a.id,
+            "journal_id": invoice.journal_id.id,
+            "date": fields.Date.context_today(self.env.user),
+            "reason": "Intercompany Reverse and Modify regression test",
+        })
+        wizard.reverse_moves(is_modify=True)
+
+        credit = invoice.reversal_move_ids.filtered(
+            lambda move: move.move_type == "out_refund"
+        )
+        self.assertEqual(len(credit), 1)
+        self.assertEqual(credit.state, "posted")
+        event = self.env["ff.intercompany.event"].search([
+            ("source_model", "=", "account.move"),
+            ("source_res_id", "=", credit.id),
+        ], limit=1)
+        self.assertTrue(event, "The credit created by Reverse and Modify must be synchronized")
+        self.assertEqual(event.state, "completed")
+        counterpart = self.env["account.move"].browse(event.target_res_id)
+        self.assertEqual(counterpart.move_type, "in_refund")
+        self.assertEqual(counterpart.company_id, self.company_b)
+        self.assertEqual(counterpart.state, "draft")
+        self.assertEqual(counterpart.invoice_line_ids.filtered(
+            lambda line: line.display_type == "product"
+        ).quantity, 10)
