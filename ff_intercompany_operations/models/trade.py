@@ -127,6 +127,7 @@ class IntercompanyTradeService(models.AbstractModel):
                 "Warehouse %s has no incoming operation type."
             ) % warehouse.display_name)
         vals["picking_type_id"] = warehouse.in_type_id.id
+        tax_service = self.env["ff.intercompany.account.service"]
         for line in order.order_line.filtered(lambda l: not l.display_type):
             product = self._get_product(line, route.destination_company_id)
             if not product:
@@ -140,7 +141,9 @@ class IntercompanyTradeService(models.AbstractModel):
                 "discount": line.discount,
                 "date_planned": order.date_order,
                 "ff_intercompany_source_line_id": line.id,
-                "tax_ids": [(6, 0, [])],
+                "tax_ids": [(6, 0, tax_service._counterpart_taxes(
+                    line.tax_ids, route.destination_company_id
+                ).ids)],
             }))
         return vals
 
@@ -160,6 +163,7 @@ class IntercompanyTradeService(models.AbstractModel):
                 "Warehouse %s has no outgoing operation type."
             ) % warehouse.display_name)
         vals["warehouse_id"] = warehouse.id
+        tax_service = self.env["ff.intercompany.account.service"]
         for line in order.order_line.filtered(lambda l: not l.display_type):
             product = self._get_product(line, route.destination_company_id)
             if not product:
@@ -171,6 +175,9 @@ class IntercompanyTradeService(models.AbstractModel):
                 "product_uom_id": line.uom_id.id,
                 "price_unit": self._price_for_line(line, product, route),
                 "discount": line.discount,
+                "tax_ids": [(6, 0, tax_service._counterpart_taxes(
+                    line.tax_ids, route.destination_company_id
+                ).ids)],
             }))
         return vals
 

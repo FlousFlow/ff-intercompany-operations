@@ -1246,3 +1246,18 @@ msgstr "يجب أن يتبع مستودع المصدر الشركة المصدر
 #. odoo-python
 msgid "The destination warehouse must belong to the destination company."
 msgstr "يجب أن يتبع مستودع الوجهة الشركة الوجهة."
+
+#. module: ff_intercompany_operations
+#. odoo-python
+msgid "Could not find exactly one %(tax_type)s tax in %(company)s with the same calculation as %(tax)s. Configure one matching destination tax before synchronizing this document."
+msgstr "تعذر العثور على ضريبة %(tax_type)s واحدة فقط في %(company)s لها نفس طريقة الحساب مثل %(tax)s. أعد إعداد ضريبة مقابلة واحدة في الشركة الوجهة قبل مزامنة هذا المستند."
+
+#. module: ff_intercompany_operations
+#. odoo-python
+msgid "The destination vendor bill tax for %(product)s does not match the source credit note. Correct the original counterpart bill before synchronizing this credit note."
+msgstr "ضريبة فاتورة المورد في الشركة الوجهة للمنتج %(product)s لا تطابق الإشعار الدائن المصدر. صحح فاتورة المورد المقابلة الأصلية قبل مزامنة هذا الإشعار الدائن."
+
+#. module: ff_intercompany_operations
+#. odoo-python
+msgid "Could not match %(product)s to one original counterpart credit line."
+msgstr "تعذر مطابقة المنتج %(product)s مع بند دائن مقابل أصلي واحد."

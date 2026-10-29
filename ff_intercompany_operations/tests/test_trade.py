@@ -16,7 +16,53 @@ class TestIntercompanyTrade(TransactionCase):
         cls.env["ff.intercompany.route"].search([
             ("source_company_id", "=", cls.company_a.id),
         ]).write({"active": False})
-        cls.company_b = cls.env["res.company"].create({"name": "IC Test Company B", "partner_id": cls.env["res.partner"].create({"name": "IC Test Company B"}).id, "currency_id": cls.env.ref("base.USD").id})
+        cls.company_b = cls.env["res.company"].create({"name": "IC Test Company B", "partner_id": cls.env["res.partner"].create({"name": "IC Test Company B"}).id, "currency_id": cls.company_a.currency_id.id, "country_id": cls.company_a.country_id.id})
+        destination_tax_group = cls.env["account.tax.group"].search([
+            ("company_id", "=", cls.company_b.id)
+        ], limit=1)
+        if not destination_tax_group:
+            destination_tax_group = cls.env["account.tax.group"].with_company(cls.company_b).create({
+                "name": "IC Test Company B Taxes",
+                "company_id": cls.company_b.id,
+            })
+        tax_service = cls.env["ff.intercompany.account.service"]
+        for source_use, target_use in (("sale", "purchase"), ("purchase", "sale")):
+            source_taxes = cls.env["account.tax"].search([
+                ("company_id", "=", cls.company_a.id),
+                ("type_tax_use", "=", source_use),
+                ("active", "=", True),
+                ("amount_type", "!=", "group"),
+            ])
+            for source_tax in source_taxes:
+                signature = tax_service._tax_calculation_signature(source_tax)
+                destination_taxes = cls.env["account.tax"].search([
+                    ("company_id", "=", cls.company_b.id),
+                    ("type_tax_use", "=", target_use),
+                    ("active", "=", True),
+                ])
+                if destination_taxes.filtered(
+                    lambda tax: tax_service._tax_calculation_signature(tax) == signature
+                ):
+                    continue
+                tax_values = {
+                    "name": source_tax.name,
+                    "amount": source_tax.amount,
+                    "amount_type": source_tax.amount_type,
+                    "type_tax_use": target_use,
+                    "company_id": cls.company_b.id,
+                    "tax_group_id": destination_tax_group.id,
+                    "country_id": cls.company_b.country_id.id,
+                    "sequence": source_tax.sequence,
+                    "price_include_override": source_tax.price_include_override,
+                    "include_base_amount": source_tax.include_base_amount,
+                    "is_base_affected": source_tax.is_base_affected,
+                    "tax_exigibility": source_tax.tax_exigibility,
+                    "tax_scope": source_tax.tax_scope,
+                }
+                for optional_field in ("is_domestic", "is_withholding_tax"):
+                    if optional_field in source_tax._fields:
+                        tax_values[optional_field] = source_tax[optional_field]
+                cls.env["account.tax"].with_company(cls.company_b).create(tax_values)
         cls.destination_warehouse = cls.env["stock.warehouse"].search([
             ("company_id", "=", cls.company_b.id),
         ], limit=1)
@@ -53,6 +99,70 @@ class TestIntercompanyTrade(TransactionCase):
             ("source_model", "=", "purchase.order"),
             ("event_type", "=", "confirmation"),
         ]), 0)
+
+    def test_trade_routes_map_taxes_between_company_sale_and_purchase_taxes(self):
+        def tax_group_for(company):
+            group = self.env["account.tax.group"].search([
+                ("company_id", "=", company.id)
+            ], limit=1)
+            return group or self.env["account.tax.group"].with_company(company).create({
+                "name": "IC Test Tax Group %s" % company.id,
+                "company_id": company.id,
+            })
+
+        source_sale_tax = self.env["account.tax"].with_company(self.company_a).create({
+            "name": "IC Source VAT 13.77%",
+            "amount": 13.77,
+            "amount_type": "percent",
+            "type_tax_use": "sale",
+            "company_id": self.company_a.id,
+            "tax_group_id": tax_group_for(self.company_a).id,
+        })
+        destination_purchase_tax = self.env["account.tax"].with_company(self.company_b).create({
+            "name": "IC Destination VAT 13.77%",
+            "amount": 13.77,
+            "amount_type": "percent",
+            "type_tax_use": "purchase",
+            "company_id": self.company_b.id,
+            "tax_group_id": tax_group_for(self.company_b).id,
+        })
+        order = self.env["sale.order"].create({
+            "company_id": self.company_a.id,
+            "partner_id": self.customer_b.id,
+            "order_line": [(0, 0, {
+                "product_id": self.product.id,
+                "product_uom_qty": 1,
+                "price_unit": 100,
+                "tax_ids": [(6, 0, source_sale_tax.ids)],
+            })],
+        })
+        order.action_confirm()
+        purchase = self.env["purchase.order"].search([
+            ("origin", "ilike", order.name), ("company_id", "=", self.company_b.id)
+        ], limit=1)
+        self.assertEqual(purchase.order_line.filtered(
+            lambda line: not line.display_type
+        ).tax_ids, destination_purchase_tax)
+        self.assertAlmostEqual(order.amount_total, purchase.amount_total, places=2)
+
+        reverse_purchase = self.env["purchase.order"].with_company(self.company_b).create({
+            "company_id": self.company_b.id,
+            "partner_id": self.vendor_a.id,
+            "order_line": [(0, 0, {
+                "product_id": self.product.id,
+                "product_qty": 1,
+                "price_unit": 100,
+                "tax_ids": [(6, 0, destination_purchase_tax.ids)],
+            })],
+        })
+        reverse_purchase.button_confirm()
+        reverse_sale = self.env["sale.order"].search([
+            ("client_order_ref", "ilike", reverse_purchase.name),
+            ("company_id", "=", self.company_a.id),
+        ], limit=1)
+        self.assertEqual(reverse_sale.order_line.filtered(
+            lambda line: not line.display_type
+        ).tax_ids, source_sale_tax)
 
     def test_purchase_confirmation_creates_one_sales_order(self):
         purchase = self.env["purchase.order"].with_company(self.company_b).create({
@@ -141,6 +251,32 @@ class TestIntercompanyTrade(TransactionCase):
 
     def test_posted_customer_credit_creates_matching_vendor_credit_and_blocks_draft_reset(self):
         self.route.write({"approval_policy": "auto", "pricing_policy": "document"})
+
+        def tax_group_for(company):
+            group = self.env["account.tax.group"].search([
+                ("company_id", "=", company.id)
+            ], limit=1)
+            return group or self.env["account.tax.group"].with_company(company).create({
+                "name": "IC Credit Test Tax Group %s" % company.id,
+                "company_id": company.id,
+            })
+
+        source_tax = self.env["account.tax"].with_company(self.company_a).create({
+            "name": "IC Credit Output VAT 13.77%",
+            "amount": 13.77,
+            "amount_type": "percent",
+            "type_tax_use": "sale",
+            "company_id": self.company_a.id,
+            "tax_group_id": tax_group_for(self.company_a).id,
+        })
+        destination_tax = self.env["account.tax"].with_company(self.company_b).create({
+            "name": "IC Credit Input VAT 13.77%",
+            "amount": 13.77,
+            "amount_type": "percent",
+            "type_tax_use": "purchase",
+            "company_id": self.company_b.id,
+            "tax_group_id": tax_group_for(self.company_b).id,
+        })
         order = self.env["sale.order"].create({
             "company_id": self.company_a.id,
             "partner_id": self.customer_b.id,
@@ -149,6 +285,7 @@ class TestIntercompanyTrade(TransactionCase):
                 "product_uom_qty": 4,
                 "price_unit": 25,
                 "discount": 10,
+                "tax_ids": [(6, 0, source_tax.ids)],
             })],
         })
         order.action_confirm()
@@ -160,6 +297,8 @@ class TestIntercompanyTrade(TransactionCase):
         purchase_line = purchase_order.order_line.filtered(lambda line: not line.display_type)
         self.assertEqual(purchase_line.ff_intercompany_source_line_id, order.order_line)
         self.assertEqual(purchase_line.discount, 10)
+        self.assertEqual(purchase_line.tax_ids, destination_tax)
+        self.assertAlmostEqual(order.amount_total, purchase_order.amount_total, places=2)
 
         sale_journal = self.env["account.journal"].search([
             ("company_id", "=", self.company_a.id), ("type", "=", "sale"),
@@ -228,6 +367,7 @@ class TestIntercompanyTrade(TransactionCase):
                 "price_unit": 25,
                 "discount": 10,
                 "account_id": income_account.id,
+                "tax_ids": [(6, 0, source_tax.ids)],
                 "sale_line_ids": [(6, 0, order.order_line.ids)],
             })],
         })
@@ -251,6 +391,10 @@ class TestIntercompanyTrade(TransactionCase):
         with self.assertRaises(UserError):
             invoice.button_draft()
         vendor_bill.action_post()
+        self.assertEqual(vendor_bill.invoice_line_ids.filtered(
+            lambda line: line.display_type == "product"
+        ).tax_ids, destination_tax)
+        self.assertAlmostEqual(invoice.amount_total, vendor_bill.amount_total, places=2)
 
         customer_credit = invoice._reverse_moves()
         customer_credit.invoice_line_ids.filtered(
@@ -269,6 +413,43 @@ class TestIntercompanyTrade(TransactionCase):
         self.assertEqual(vendor_credit.invoice_line_ids.quantity, 2)
         self.assertEqual(vendor_credit.invoice_line_ids.price_unit, 25)
         self.assertEqual(vendor_credit.invoice_line_ids.discount, 10)
+        self.assertEqual(vendor_credit.invoice_line_ids.filtered(
+            lambda line: line.display_type == "product"
+        ).tax_ids, destination_tax)
+        self.assertAlmostEqual(customer_credit.amount_total, vendor_credit.amount_total, places=2)
+
+        replacement_invoice = self.env["account.move"].create({
+            "move_type": "out_invoice",
+            "company_id": self.company_a.id,
+            "journal_id": sale_journal.id,
+            "partner_id": self.customer_b.id,
+            "sab_replacement_credit_note_id": customer_credit.id,
+            "invoice_line_ids": [(0, 0, {
+                "name": "Replacement intercompany goods",
+                "product_id": self.product.id,
+                "quantity": 2,
+                "product_uom_id": self.product.uom_id.id,
+                "price_unit": 25,
+                "discount": 10,
+                "account_id": income_account.id,
+                "tax_ids": [(6, 0, source_tax.ids)],
+                "sale_line_ids": [(6, 0, order.order_line.ids)],
+            })],
+        })
+        replacement_invoice.action_post()
+        replacement_event = self.env["ff.intercompany.event"].search([
+            ("source_model", "=", "account.move"),
+            ("source_res_id", "=", replacement_invoice.id),
+            ("route_id", "=", self.route.id),
+        ], limit=1)
+        self.assertEqual(replacement_event.state, "completed")
+        replacement_bill = self.env["account.move"].browse(replacement_event.target_res_id)
+        replacement_bill_line = replacement_bill.invoice_line_ids.filtered(
+            lambda line: line.display_type == "product"
+        )
+        self.assertEqual(replacement_bill_line.quantity, 2)
+        self.assertEqual(replacement_bill_line.tax_ids, destination_tax)
+        self.assertAlmostEqual(replacement_invoice.amount_total, replacement_bill.amount_total, places=2)
         with self.assertRaises(UserError):
             customer_credit.button_draft()
 

@@ -1,4 +1,5 @@
 from odoo import fields
+from odoo.exceptions import ValidationError
 from odoo.tests.common import TransactionCase, tagged
 
 
@@ -86,6 +87,65 @@ class TestIntercompanyAccount(TransactionCase):
         self.assertEqual(bill.move_type, "in_invoice")
         self.assertEqual(bill.state, "draft")
         self.assertEqual(self.env["account.move"].search_count([("ref", "=", invoice.name), ("move_type", "=", "in_invoice")]), 1)
+
+    def test_posted_invoice_maps_sales_tax_to_destination_purchase_tax(self):
+        sale_tax = self.env["account.tax"].with_company(self.company_a).create({
+            "name": "IC Output VAT 13.77%",
+            "amount": 13.77,
+            "amount_type": "percent",
+            "type_tax_use": "sale",
+            "company_id": self.company_a.id,
+        })
+        purchase_tax = self.env["account.tax"].with_company(self.company_b).create({
+            "name": "IC Input VAT 13.77%",
+            "amount": 13.77,
+            "amount_type": "percent",
+            "type_tax_use": "purchase",
+            "company_id": self.company_b.id,
+        })
+        journal = self.env["account.journal"].search([
+            ("company_id", "=", self.company_a.id), ("type", "=", "sale")
+        ], limit=1)
+        income_account = self.env["account.account"].search([
+            ("company_ids", "in", self.company_a.id), ("account_type", "=", "income")
+        ], limit=1)
+        invoice = self.env["account.move"].create({
+            "move_type": "out_invoice",
+            "company_id": self.company_a.id,
+            "journal_id": journal.id,
+            "partner_id": self.customer.id,
+            "invoice_line_ids": [(0, 0, {
+                "name": "Taxed intercompany service",
+                "quantity": 1,
+                "price_unit": 100,
+                "account_id": income_account.id,
+                "tax_ids": [(6, 0, sale_tax.ids)],
+            })],
+        })
+
+        invoice.action_post()
+
+        event = self.env["ff.intercompany.event"].search([
+            ("source_model", "=", "account.move"), ("source_res_id", "=", invoice.id)
+        ], limit=1)
+        self.assertEqual(event.state, "completed")
+        bill = self.env["account.move"].browse(event.target_res_id)
+        bill_line = bill.invoice_line_ids.filtered(lambda line: line.display_type == "product")
+        self.assertEqual(bill_line.tax_ids, purchase_tax)
+        self.assertAlmostEqual(invoice.amount_total, bill.amount_total, places=2)
+
+    def test_missing_counterpart_tax_is_not_silently_dropped(self):
+        sale_tax = self.env["account.tax"].with_company(self.company_a).create({
+            "name": "IC Output VAT 13.79%",
+            "amount": 13.79,
+            "amount_type": "percent",
+            "type_tax_use": "sale",
+            "company_id": self.company_a.id,
+        })
+        with self.assertRaisesRegex(ValidationError, "Could not find exactly one"):
+            self.env["ff.intercompany.account.service"]._counterpart_taxes(
+                sale_tax, self.company_b
+            )
 
     def test_manual_invoice_route_requires_explicit_sync(self):
         self.route.write({"trigger": "manual"})

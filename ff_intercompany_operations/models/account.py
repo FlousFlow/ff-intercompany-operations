@@ -6,6 +6,81 @@ class IntercompanyAccountService(models.AbstractModel):
     _name = "ff.intercompany.account.service"
     _description = "Intercompany Accounting Service"
 
+    def _tax_calculation_signature(self, tax):
+        """Describe the calculation, not company-specific tax accounts or labels."""
+        if tax.amount_type == "group":
+            return (
+                "group",
+                bool("is_domestic" in tax._fields and tax.is_domestic),
+                bool("is_withholding_tax" in tax._fields and tax.is_withholding_tax),
+                bool(tax.price_include),
+                bool(tax.include_base_amount),
+                bool(tax.is_base_affected),
+                tax.sequence,
+                tax.tax_exigibility,
+                tax.tax_scope,
+                tuple(sorted(
+                    (self._tax_calculation_signature(child) for child in tax.children_tax_ids),
+                    key=repr,
+                )),
+            )
+        return (
+            tax.amount_type,
+            round(tax.amount, 8),
+            bool(tax.price_include),
+            bool(tax.include_base_amount),
+            bool(tax.is_base_affected),
+            tax.sequence,
+            tax.tax_exigibility,
+            tax.tax_scope,
+            bool("is_domestic" in tax._fields and tax.is_domestic),
+            bool("is_withholding_tax" in tax._fields and tax.is_withholding_tax),
+        )
+
+    def _counterpart_taxes(self, source_taxes, destination_company):
+        """Find an unambiguous equivalent tax configured for the destination company.
+
+        A source sales tax is mapped to a purchase tax and vice versa.  Tax
+        IDs and accounting repartition accounts are company-specific, so only
+        calculation behavior is compared.  Missing or ambiguous mappings are
+        rejected instead of silently dropping tax from the counterpart.
+        """
+        target_taxes = self.env["account.tax"]
+        for source_tax in source_taxes:
+            target_type = {"sale": "purchase", "purchase": "sale"}.get(
+                source_tax.type_tax_use, source_tax.type_tax_use
+            )
+            tax_model = self.env["account.tax"].with_company(destination_company)
+            candidates = tax_model.search([
+                ("company_id", "=", destination_company.id),
+                ("type_tax_use", "=", target_type),
+                ("active", "=", True),
+            ])
+            signature = self._tax_calculation_signature(source_tax)
+            matches = candidates.filtered(
+                lambda tax: self._tax_calculation_signature(tax) == signature
+            )
+            if not matches:
+                shared_candidates = tax_model.search([
+                    ("company_id", "=", False),
+                    ("type_tax_use", "=", target_type),
+                    ("active", "=", True),
+                ])
+                matches = shared_candidates.filtered(
+                    lambda tax: self._tax_calculation_signature(tax) == signature
+                )
+            if len(matches) != 1:
+                raise ValidationError(_(
+                    "Could not find exactly one %(tax_type)s tax in %(company)s "
+                    "with the same calculation as %(tax)s. Configure one matching "
+                    "destination tax before synchronizing this document.",
+                    tax_type=target_type,
+                    company=destination_company.display_name,
+                    tax=source_tax.display_name,
+                ))
+            target_taxes |= matches
+        return target_taxes
+
     def _route_for(self, move, trigger="posting"):
         today = fields.Date.context_today(self)
         routes = self.env["ff.intercompany.route"].sudo().search([
@@ -122,7 +197,9 @@ class IntercompanyAccountService(models.AbstractModel):
                 "product_uom_id": line.product_uom_id.id if line.product_uom_id else False,
                 "price_unit": price_unit,
                 "discount": line.discount,
-                "tax_ids": [(6, 0, [])],
+                "tax_ids": [Command.set(self._counterpart_taxes(
+                    line.tax_ids, route.destination_company_id
+                ).ids)],
             }))
         bill = target_model.create(values)
         if route.approval_policy == "auto":
@@ -261,6 +338,16 @@ class IntercompanyAccountService(models.AbstractModel):
                     product=source_line.product_id.display_name,
                 ))
             bill_line = bill_lines
+            expected_taxes = self._counterpart_taxes(
+                source_line.tax_ids, route.destination_company_id
+            )
+            if set(expected_taxes.ids) != set(bill_line.tax_ids.ids):
+                raise ValidationError(_(
+                    "The destination vendor bill tax for %(product)s does not match "
+                    "the source credit note. Correct the original counterpart bill "
+                    "before synchronizing this credit note.",
+                    product=source_line.product_id.display_name,
+                ))
             source_uom = source_line.product_uom_id or source_line.product_id.uom_id
             target_uom = bill_line.product_uom_id or purchase_line.uom_id
             quantity = source_uom._compute_quantity(
@@ -363,6 +450,16 @@ class IntercompanyAccountService(models.AbstractModel):
             lambda line: line.product_id and line.display_type in (False, "product")
         ):
             purchase_line = self._purchase_line_for_invoice_line(source_line, purchase_order)
+            original_credit_lines = target_credit.invoice_line_ids.filtered(
+                lambda line: line.purchase_line_id == purchase_line
+                and line.product_id == source_line.product_id
+                and line.display_type in (False, "product")
+            )
+            if len(original_credit_lines) != 1:
+                raise ValidationError(_(
+                    "Could not match %(product)s to one original counterpart credit line.",
+                    product=source_line.product_id.display_name,
+                ))
             source_uom = source_line.product_uom_id or source_line.product_id.uom_id
             target_uom = purchase_line.uom_id
             quantity = source_uom._compute_quantity(
@@ -375,6 +472,10 @@ class IntercompanyAccountService(models.AbstractModel):
                 "product_uom_id": target_uom.id,
                 "price_unit": price_unit,
                 "discount": source_line.discount,
+                "account_id": original_credit_lines.account_id.id,
+                "tax_ids": [Command.set(self._counterpart_taxes(
+                    source_line.tax_ids, route.destination_company_id
+                ).ids)],
                 "purchase_line_id": purchase_line.id,
             })
             invoice_lines.append(Command.create(line_values))
