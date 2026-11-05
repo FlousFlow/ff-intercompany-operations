@@ -24,10 +24,7 @@ class IntercompanyTradeService(models.AbstractModel):
             "|", ("agreement_id.expiration_date", "=", False),
             ("agreement_id.expiration_date", ">=", today),
         ], order="sequence,id")
-        authorized = routes.filtered(
-            lambda route: not route.agreement_id.authorized_user_ids
-            or self.env.user in route.agreement_id.authorized_user_ids
-        )
+        authorized = routes.filtered(lambda route: route.agreement_id.user_can_run(self.env.user))
         if routes and not authorized:
             raise ValidationError(_(
                 "You are not authorized to run this intercompany agreement."

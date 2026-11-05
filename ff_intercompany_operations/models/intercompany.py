@@ -63,6 +63,13 @@ class IntercompanyAgreement(models.Model):
             and (not self.expiration_date or self.expiration_date >= today)
         )
 
+    def user_can_run(self, user=None):
+        """Use Odoo multi-company access for agreement execution."""
+        self.ensure_one()
+        user = user or self.env.user
+        allowed_companies = user.company_ids
+        return self.company_a_id in allowed_companies and self.company_b_id in allowed_companies
+
 
 class IntercompanyCounterparty(models.Model):
     _name = "ff.intercompany.counterparty"

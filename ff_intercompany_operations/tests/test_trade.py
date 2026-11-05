@@ -453,7 +453,7 @@ class TestIntercompanyTrade(TransactionCase):
         with self.assertRaises(UserError):
             customer_credit.button_draft()
 
-    def test_authorized_users_restrict_synchronization(self):
+    def test_company_access_allows_synchronization_regardless_of_setup_creator(self):
         user = self.env["res.users"].create({
             "name": "Other Intercompany Manager",
             "login": "ic_other_manager",
@@ -467,8 +467,12 @@ class TestIntercompanyTrade(TransactionCase):
             "partner_id": self.customer_b.id,
             "order_line": [(0, 0, {"product_id": self.product.id, "product_uom_qty": 1, "price_unit": 100})],
         })
-        with self.assertRaises(ValidationError):
-            order.action_confirm()
+        order.action_confirm()
+        event = self.env["ff.intercompany.event"].search([
+            ("source_model", "=", "sale.order"),
+            ("source_res_id", "=", order.id),
+        ], limit=1)
+        self.assertEqual(event.state, "completed")
 
     def test_ambiguous_routes_are_blocked(self):
         self.env["ff.intercompany.route"].create({
